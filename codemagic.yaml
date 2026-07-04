@@ -40,25 +40,40 @@ workflows:
               with open(manifest_path, "w") as f:
                   f.write(content)
 
-          # 2. Add Java 8 Desugaring to build.gradle
+          # 2. Add Java 8 Desugaring to build.gradle or build.gradle.kts
           gradle_path = "android/app/build.gradle"
+          is_kotlin = False
           if not os.path.exists(gradle_path):
               gradle_path = "android/app/build.gradle.kts"
+              is_kotlin = True
 
           with open(gradle_path, "r") as f:
               content = f.read()
 
-          if "coreLibraryDesugaringEnabled true" not in content:
-              content = content.replace(
-                  "compileOptions {",
-                  "compileOptions {\n        coreLibraryDesugaringEnabled true\n        sourceCompatibility JavaVersion.VERSION_1_8\n        targetCompatibility JavaVersion.VERSION_1_8"
-              )
-
-          if "coreLibraryDesugaring" not in content:
-              content = content.replace(
-                  "dependencies {",
-                  "dependencies {\n    coreLibraryDesugaring \"com.android.tools:desugar_jdk_libs:1.2.2\""
-              )
+          if is_kotlin:
+              # Kotlin DSL syntax (uses = and parentheses)
+              if "isCoreLibraryDesugaringEnabled" not in content:
+                  content = content.replace(
+                      "compileOptions {",
+                      "compileOptions {\n        isCoreLibraryDesugaringEnabled = true"
+                  )
+              if "coreLibraryDesugaring(" not in content:
+                  content = content.replace(
+                      "dependencies {",
+                      "dependencies {\n    coreLibraryDesugaring(\"com.android.tools:desugar_jdk_libs:1.2.2\")"
+                  )
+          else:
+              # Groovy syntax (uses spaces)
+              if "coreLibraryDesugaringEnabled" not in content:
+                  content = content.replace(
+                      "compileOptions {",
+                      "compileOptions {\n        coreLibraryDesugaringEnabled true"
+                  )
+              if "coreLibraryDesugaring " not in content:
+                  content = content.replace(
+                      "dependencies {",
+                      "dependencies {\n    coreLibraryDesugaring \"com.android.tools:desugar_jdk_libs:1.2.2\""
+                  )
 
           with open(gradle_path, "w") as f:
               f.write(content)
