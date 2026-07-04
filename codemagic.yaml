@@ -58,10 +58,8 @@ workflows:
                       "compileOptions {\n        isCoreLibraryDesugaringEnabled = true"
                   )
               if "coreLibraryDesugaring(" not in content:
-                  content = content.replace(
-                      "dependencies {",
-                      "dependencies {\n    coreLibraryDesugaring(\"com.android.tools:desugar_jdk_libs:1.2.2\")"
-                  )
+                  # Safely append to the end of the file
+                  content += '\n\ndependencies {\n    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:1.2.2")\n}\n'
           else:
               # Groovy syntax (uses spaces)
               if "coreLibraryDesugaringEnabled" not in content:
@@ -70,10 +68,7 @@ workflows:
                       "compileOptions {\n        coreLibraryDesugaringEnabled true"
                   )
               if "coreLibraryDesugaring " not in content:
-                  content = content.replace(
-                      "dependencies {",
-                      "dependencies {\n    coreLibraryDesugaring \"com.android.tools:desugar_jdk_libs:1.2.2\""
-                  )
+                  content += '\n\ndependencies {\n    coreLibraryDesugaring "com.android.tools:desugar_jdk_libs:1.2.2"\n}\n'
 
           with open(gradle_path, "w") as f:
               f.write(content)
