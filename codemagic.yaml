@@ -77,11 +77,10 @@ workflows:
       - name: Get Flutter packages
         script: flutter pub get
         
-      - name: Fix outdated ML Kit SDK versions
+      - name: Fix ALL outdated ML Kit SDK versions
         script: |
-          # ML Kit hardcodes SDK 29, but Android requires 34. This fixes it automatically.
-          find /Users/builder/.pub-cache/hosted/pub.dev/ -name "build.gradle" -exec perl -pi -e 's/compileSdkVersion 29/compileSdkVersion 34/g' {} +
-          find /Users/builder/.pub-cache/hosted/pub.dev/ -name "build.gradle" -exec perl -pi -e 's/compileSdk 29/compileSdk 34/g' {} +
+          # This regex finds ANY compileSdk version (29, 31, 32, etc.) and forces it to 34
+          find /Users/builder/.pub-cache/hosted/pub.dev/ -name "*.gradle" -o -name "*.gradle.kts" | xargs perl -pi -e 's/compileSdk(?:Version)?\s+\d+/compileSdk 34/g'
         
       - name: Build Debug APK
         script: flutter build apk --debug
