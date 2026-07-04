@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_local_notifications/flutter_localNotifications.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart'; // Fixed capital N
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:timezone/data/latest.dart' as tz; // Added for scheduling
 import 'screens/onboarding_screen.dart';
 import 'screens/home_screen.dart';
 import 'services/notification_service.dart';
@@ -11,6 +12,9 @@ final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
+  // Initialize Timezones for scheduling
+  tz.initializeTimeZones();
+
   // Initialize Notifications
   const AndroidInitializationSettings initializationSettingsAndroid =
       AndroidInitializationSettings('@mipmap/ic_launcher');
