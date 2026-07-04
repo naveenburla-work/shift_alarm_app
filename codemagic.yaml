@@ -5,13 +5,13 @@ workflows:
     environment:
       flutter: stable
     scripts:
-      - name: Recreate project structure from scratch
+      - name: Generate pristine project
         script: |
           # Move your code out of the way
           mv lib lib_user
           mv pubspec.yaml pubspec_user.yaml
           
-          # Delete all old boilerplate files
+          # Delete all old boilerplate files causing errors
           rm -rf android ios test
           
           # Create a 100% fresh standard Flutter project
@@ -22,104 +22,51 @@ workflows:
           mv lib_user lib
           rm pubspec.yaml
           mv pubspec_user.yaml pubspec.yaml
-          
+
+      - name: Safely inject permissions and settings
+        script: |
+          python3 - <<'PY'
+          import os
+
+          # 1. Add permissions to AndroidManifest.xml
+          manifest_path = "android/app/src/main/AndroidManifest.xml"
+          with open(manifest_path, "r") as f:
+              content = f.read()
+          if "android.permission.CAMERA" not in content:
+              content = content.replace(
+                  '<manifest xmlns:android="http://schemas.android.com/apk/res/android">',
+                  '<manifest xmlns:android="http://schemas.android.com/apk/res/android">\n    <uses-permission android:name="android.permission.CAMERA" />\n    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>'
+              )
+              with open(manifest_path, "w") as f:
+                  f.write(content)
+
+          # 2. Add Java 8 Desugaring to build.gradle
+          gradle_path = "android/app/build.gradle"
+          if not os.path.exists(gradle_path):
+              gradle_path = "android/app/build.gradle.kts"
+
+          with open(gradle_path, "r") as f:
+              content = f.read()
+
+          if "coreLibraryDesugaringEnabled true" not in content:
+              content = content.replace(
+                  "compileOptions {",
+                  "compileOptions {\n        coreLibraryDesugaringEnabled true\n        sourceCompatibility JavaVersion.VERSION_1_8\n        targetCompatibility JavaVersion.VERSION_1_8"
+              )
+
+          if "coreLibraryDesugaring" not in content:
+              content = content.replace(
+                  "dependencies {",
+                  "dependencies {\n    coreLibraryDesugaring \"com.android.tools:desugar_jdk_libs:1.2.2\""
+              )
+
+          with open(gradle_path, "w") as f:
+              f.write(content)
+          PY
+
       - name: Get Flutter packages
         script: flutter pub get
         
-      - name: Overwrite AndroidManifest with permissions
-        script: |
-          cat <<EOF > android/app/src/main/AndroidManifest.xml
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-              <uses-permission android:name="android.permission.CAMERA" />
-              <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
-              <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
-              <application
-                  android:label="shift_alarm_app"
-                  android:name="${applicationName}"
-                  android:icon="@mipmap/ic_launcher">
-                  <activity
-                      android:name=".MainActivity"
-                      android:exported="true"
-                      android:launchMode="singleTop"
-                      android:theme="@style/LaunchTheme"
-                      android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
-                      android:hardwareAccelerated="true"
-                      android:windowSoftInputMode="adjustResize">
-                      <meta-data
-                        android:name="io.flutter.embedding.android.NormalTheme"
-                        android:resource="@style/NormalTheme"
-                        />
-                      <intent-filter>
-                          <action android:name="android.intent.action.MAIN"/>
-                          <category android:name="android.intent.category.LAUNCHER"/>
-                      </intent-filter>
-                  </activity>
-                  <meta-data
-                      android:name="flutterEmbedding"
-                      android:value="2" />
-              </application>
-          </manifest>
-          EOF
-          
-      - name: Overwrite build.gradle for Desugaring
-        script: |
-          cat <<EOF > android/app/build.gradle
-          plugins {
-              id "com.android.application"
-              id "kotlin-android"
-              id "dev.flutter.flutter-gradle-plugin"
-          }
-
-          def localProperties = new Properties()
-          def localPropertiesFile = rootProject.file('local.properties')
-          if (localPropertiesFile.exists()) {
-              localPropertiesFile.withReader('UTF-8') { reader ->
-                  localProperties.load(reader)
-              }
-          }
-
-          def flutterVersionCode = localProperties.getProperty('flutter.versionCode') ?: '1'
-          def flutterVersionName = localProperties.getProperty('flutter.versionName') ?: '1.0'
-
-          android {
-              namespace "com.example.shift_alarm_app"
-              compileSdk flutter.compileSdkVersion
-              ndkVersion flutter.ndkVersion
-
-              compileOptions {
-                  coreLibraryDesugaringEnabled true
-                  sourceCompatibility JavaVersion.VERSION_1_8
-                  targetCompatibility JavaVersion.VERSION_1_8
-              }
-
-              kotlinOptions {
-                  jvmTarget = '1.8'
-              }
-
-              sourceSets {
-                  main.java.srcDirs += 'src/main/kotlin'
-              }
-
-              defaultConfig {
-                  applicationId "com.example.shift_alarm_app"
-                  minSdkVersion 21
-                  targetSdkVersion flutter.targetSdkVersion
-                  versionCode flutterVersionCode.toInteger()
-                  versionName flutterVersionName
-              }
-
-              buildTypes {
-                  release {
-                      signingConfig signingConfigs.debug
-                  }
-              }
-          }
-
-          dependencies {
-              coreLibraryDesugaring "com.android.tools:desugar_jdk_libs:1.2.2"
-          }
-          EOF
-
       - name: Build Debug APK
         script: flutter build apk --debug
         
