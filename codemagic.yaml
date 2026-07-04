@@ -5,6 +5,8 @@ workflows:
     environment:
       flutter: stable
     scripts:
+      - name: Repair and update Android folders
+        script: flutter create --project-name shift_alarm_app .
       - name: Get Flutter packages
         script: flutter pub get
       - name: Build Debug APK
