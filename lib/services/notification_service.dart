@@ -1,4 +1,5 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:timezone/timezone.dart' as tz;
 
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
@@ -27,21 +28,23 @@ class NotificationService {
           channelDescription: 'Alarms for work shifts',
           importance: Importance.max,
           priority: Priority.high,
-          // To make the alarm "talk", you would add a custom sound file here:
-          // sound: RawResourceAndroidNotificationSound('get_ready_voice'),
           playSound: true,
         );
         
         const NotificationDetails platformChannelSpecifics =
             NotificationDetails(android: androidPlatformChannelSpecifics);
 
-        await flutterLocalNotificationsPlugin.schedule(
+        // Convert DateTime to TZDateTime
+        tz.TZDateTime tzScheduledTime = tz.TZDateTime.from(scheduledTime, tz.local);
+
+        await flutterLocalNotificationsPlugin.zonedSchedule(
           key.hashCode, // Unique ID
           'Work Alarm',
           messages[key], // The message text
-          scheduledTime,
+          tzScheduledTime,
           platformChannelSpecifics,
-          androidAllowWhileIdle: true, // Wakes device from doze mode
+          androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+          uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
         );
       }
     });
