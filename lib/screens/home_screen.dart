@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/schedule_parser.dart';
+import '../utils/custom_note_storage.dart';
 import '../services/notification_service.dart';
 import 'onboarding_screen.dart';
 
@@ -19,7 +20,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String _userName = '';
   bool _isLoading = false;
   List<Map<String, DateTime>> _allDaysAlarms = [];
-  TextEditingController _noteController = TextEditingController();
+  List<CustomNote> _customNotes = [];
 
   @override
   void initState() {
@@ -43,17 +44,17 @@ class _HomeScreenState extends State<HomeScreen> {
       });
     }
 
-    final String? savedNote = prefs.getString('globalNote');
-    if (savedNote != null) {
-      _noteController.text = savedNote;
-    }
+    // Load saved notes from file
+    List<CustomNote> notes = await NoteStorage.readNotes();
+    setState(() {
+      _customNotes = notes;
+    });
   }
 
   void _changeName() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('userName');
     await prefs.remove('savedAlarms');
-    await prefs.remove('globalNote');
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(builder: (context) => const OnboardingScreen()),
@@ -108,15 +109,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _scheduleAlarms() async {
     if (_allDaysAlarms.isNotEmpty) {
-      // Save the note to memory when scheduling
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('globalNote', _noteController.text.trim());
-
-      await NotificationService.scheduleShiftAlarms(_allDaysAlarms, _userName, _noteController.text.trim());
+      await NotificationService.scheduleShiftAlarms(_allDaysAlarms, _userName);
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('All alarms scheduled successfully!'),
+          content: const Text('All shift alarms scheduled successfully!'),
           backgroundColor: Colors.green[600],
           behavior: SnackBarBehavior.floating,
         ),
@@ -172,6 +169,88 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _createCustomNoteAlert() async {
+    DateTime? selectedDate = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+
+    if (selectedDate == null) return;
+
+    TimeOfDay? selectedTime = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.now(),
+    );
+
+    if (selectedTime == null) return;
+
+    TextEditingController noteController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Enter Your Note'),
+          content: TextField(
+            controller: noteController,
+            maxLines: 3,
+            decoration: const InputDecoration(hintText: 'e.g. Meeting with manager'),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            ElevatedButton(
+              onPressed: () async {
+                if (noteController.text.trim().isEmpty) return;
+                
+                DateTime alertTime = DateTime(
+                  selectedDate.year,
+                  selectedDate.month,
+                  selectedDate.day,
+                  selectedTime.hour,
+                  selectedTime.minute,
+                );
+
+                String noteId = DateTime.now().millisecondsSinceEpoch.toString();
+
+                CustomNote newNote = CustomNote(
+                  id: noteId,
+                  text: noteController.text.trim(),
+                  alertTime: alertTime,
+                );
+
+                setState(() {
+                  _customNotes.add(newNote);
+                });
+
+                await NoteStorage.writeNotes(_customNotes);
+                await NotificationService.scheduleCustomNote(alertTime, newNote.text, noteId);
+
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: const Text('Custom note alert scheduled! It will stay until midnight.'),
+                    backgroundColor: Colors.green[600],
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              },
+              child: const Text('Schedule Alert'),
+            )
+          ],
+        );
+      },
+    );
+  }
+
+  void _markNoteComplete(int index) async {
+    setState(() {
+      _customNotes[index].isCompleted = true;
+    });
+    await NoteStorage.writeNotes(_customNotes);
+  }
+
   String _formatDate(DateTime dt) {
     return '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')} - ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
   }
@@ -197,31 +276,65 @@ class _HomeScreenState extends State<HomeScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   
-                  // Top Note Input
-                  Card(
-                    color: const Color(0xFFFFF8E1),
-                    child: Padding(
-                      padding: const EdgeInsets.all(12.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text("General Note (shows in notifications)", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.amber)),
-                          const SizedBox(height: 8),
-                          TextField(
-                            controller: _noteController,
-                            maxLines: 2,
-                            decoration: const InputDecoration(
-                              hintText: 'e.g. Check with manager',
-                              filled: true,
-                              fillColor: Colors.white,
-                              border: OutlineInputBorder(),
-                            ),
-                          ),
-                        ],
-                      ),
+                  OutlinedButton.icon(
+                    onPressed: _createCustomNoteAlert,
+                    icon: const Icon(Icons.note_add, color: Colors.amber),
+                    label: const Text('Create Custom Note Alert', style: TextStyle(color: Colors.amber)),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: Colors.amber),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
                     ),
                   ),
                   const SizedBox(height: 16),
+
+                  // DISPLAY CUSTOM NOTES FROM FILE
+                  if (_customNotes.isNotEmpty) ...[
+                    const Text("Saved Notes", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    ..._customNotes.asMap().entries.map((entry) {
+                      int idx = entry.key;
+                      CustomNote note = entry.value;
+                      
+                      // Determine if the note is Red or Green
+                      DateTime todayMidnight = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
+                      bool isPast = note.alertTime.isBefore(todayMidnight);
+                      
+                      Color cardColor;
+                      Color textColor;
+                      String statusText;
+
+                      if (note.isCompleted) {
+                        cardColor = Colors.green[50]!;
+                        textColor = Colors.green[800]!;
+                        statusText = "(complete)";
+                      } else if (isPast) {
+                        cardColor = Colors.red[50]!;
+                        textColor = Colors.red[800]!;
+                        statusText = "(not complete)";
+                      } else {
+                        cardColor = Colors.amber[50]!;
+                        textColor = Colors.amber[800]!;
+                        statusText = "(pending)";
+                      }
+
+                      return Card(
+                        color: cardColor,
+                        child: ListTile(
+                          title: Text("${note.text} $statusText", style: TextStyle(color: textColor, fontWeight: FontWeight.bold)),
+                          subtitle: Text("Scheduled: ${_formatDate(note.alertTime)}", style: TextStyle(color: textColor.withOpacity(0.8))),
+                          trailing: note.isCompleted 
+                            ? const Icon(Icons.check_circle, color: Colors.green)
+                            : TextButton(
+                                onPressed: () => _markNoteComplete(idx),
+                                child: const Text("Mark Done"),
+                              ),
+                        ),
+                      );
+                    }).toList(),
+                    const SizedBox(height: 24),
+                    const Divider(),
+                    const SizedBox(height: 16),
+                  ],
 
                   if (_allDaysAlarms.isEmpty) ...[
                     const SizedBox(height: 20),
@@ -306,7 +419,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ElevatedButton.icon(
                       onPressed: _scheduleAlarms,
                       icon: const Icon(Icons.alarm_on),
-                      label: const Text('Schedule All Alarms'),
+                      label: const Text('Schedule All Shift Alarms'),
                     ),
                     const SizedBox(height: 12),
                     TextButton(
