@@ -1,59 +1,46 @@
 import 'package:intl/intl.dart';
 
 class ScheduleParser {
-  /// Extracts the next upcoming shift from the schedule grid.
   static Map<String, DateTime>? extractSchedule(String rawText, String userName) {
-    List<String> lines = rawText.split('\n');
-    
-    List<String> dates = [];
-
-    // 1. Find the dates line (e.g., "4-Jul-26 5-Jul-26 6-Jul-26...")
-    // We look for a line that contains at least 3 dates in this format.
+    // 1. Find the first 7 dates in the format 4-Jul-26
     RegExp dateRegex = RegExp(r'\b\d{1,2}-[A-Za-z]{3}-\d{2,4}\b');
-    for (String line in lines) {
-      var matches = dateRegex.allMatches(line);
-      if (matches.length >= 3) {
-        dates = matches.map((m) => m.group(0)!).toList();
-        break; // Stop at the first row of dates
-      }
-    }
+    var dateMatches = dateRegex.allMatches(rawText);
+    if (dateMatches.length < 7) return null;
+    List<String> dates = dateMatches.take(7).map((m) => m.group(0)!).toList();
 
-    if (dates.isEmpty) return null;
+    // 2. Find the user's name
+    int nameIndex = rawText.toLowerCase().indexOf(userName.toLowerCase());
+    if (nameIndex == -1) return null;
 
-    // 2. Find the user's line
-    String? targetLine;
-    for (String line in lines) {
-      if (line.toLowerCase().contains(userName.toLowerCase())) {
-        targetLine = line;
-        break;
-      }
-    }
+    // 3. Extract everything AFTER the user's name
+    String remainingText = rawText.substring(nameIndex + userName.length);
 
-    if (targetLine == null) return null;
+    // 4. Find the next 7 shift blocks. 
+    // We use [^\s]+ to grab any continuous block of text that isn't a space (catches 11PM-7:30AM, OFF, IN-Open, etc.)
+    RegExp shiftRegex = RegExp(r'[^\s]+');
+    var shiftMatches = shiftRegex.allMatches(remainingText);
+    List<String> shifts = shiftMatches.take(7).map((m) => m.group(0)!).toList();
 
-    // 3. Extract all shift blocks from the user's line
-    // This regex catches: 11PM-7:30AM, 7AM-3:30PM, 11AM-7.30PM, OFF, 7:30AM Open, etc.
-    RegExp shiftRegex = RegExp(
-      r'((?:1[0-2]|0?[1-9])(?:[:.][0-5][0-9])?\s*[APap][Mm](?:\s*-\s*(?:1[0-2]|0?[1-9])(?:[:.][0-5][0-9])?\s*[APap][Mm])?|OFF)',
-      caseSensitive: false
-    );
-    
-    var shiftMatches = shiftRegex.allMatches(targetLine);
-    List<String> shifts = shiftMatches.map((m) => m.group(0)!).toList();
+    if (shifts.isEmpty) return null;
 
-    // 4. Match dates with shifts and find the first UPCOMING shift
     DateTime now = DateTime.now();
     DateTime? shiftStart;
 
+    // 5. Match dates with shifts to find the next upcoming shift
     for (int i = 0; i < dates.length && i < shifts.length; i++) {
       String dateStr = dates[i];
       String shiftStr = shifts[i].toUpperCase();
 
-      // Skip if the person is OFF that day
-      if (shiftStr == 'OFF') continue;
+      // Skip if the shift is OFF
+      if (shiftStr == 'OFF' || shiftStr.contains('OFF-R')) continue;
 
       // Extract start time (e.g., "11PM" from "11PM-7:30AM")
-      String timeStr = shiftStr.split('-')[0].trim();
+      // This regex is much smarter and handles weird dashes (–) or dots (.)
+      RegExp timeOnlyRegex = RegExp(r'((?:1[0-2]|0?[1-9])(?:[:.][0-5][0-9])?\s*[AP]M)', caseSensitive: false);
+      var timeMatch = timeOnlyRegex.firstMatch(shiftStr);
+      if (timeMatch == null) continue; // If there's no time (like "IN"), skip to the next day
+
+      String timeStr = timeMatch.group(0)!.toUpperCase();
       
       // Normalize time string (e.g., "7.30AM" -> "7:30 AM", "11PM" -> "11:00 PM")
       timeStr = timeStr.replaceAll('.', ':');
@@ -72,28 +59,20 @@ class ScheduleParser {
 
       DateTime? parsedDateTime;
       try {
-        // Parse "4-Jul-2026 11:00 PM"
         parsedDateTime = DateFormat('d-MMM-yyyy h:mm a').parse('$normalizedDateStr $timeStr');
       } catch (e) {
-        continue; // If parsing fails, skip this shift
+        continue; 
       }
 
       // If the shift is today or in the future, use it!
       if (!parsedDateTime.isBefore(now)) {
         shiftStart = parsedDateTime;
-        break; // Found the next upcoming shift
+        break; 
       }
-    }
-
-    // If all shifts are in the past (e.g., old schedule), just grab the first one so the app doesn't crash
-    if (shiftStart == null && shifts.isNotEmpty) {
-       // Fallback to first shift if we must
-       // (You can remove this fallback if you only want future shifts)
     }
 
     if (shiftStart == null) return null;
 
-    // 5. Calculate the 5 required timestamps
     return {
       'shift_start': shiftStart,
       'get_ready': shiftStart.subtract(const Duration(minutes: 90)),
