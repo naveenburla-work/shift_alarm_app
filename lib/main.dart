@@ -22,6 +22,11 @@ void main() async {
   
   await flutterLocalNotificationsPlugin.initialize(initializationSettings);
 
+  // FORCE Android to grant notification permissions so alarms ring
+  await flutterLocalNotificationsPlugin
+      .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+      ?.requestNotificationsPermission();
+
   final prefs = await SharedPreferences.getInstance();
   final String? userName = prefs.getString('userName');
 
@@ -36,10 +41,10 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Shift Alarm',
-      debugShowCheckedModeBanner: false, // Removes the debug banner
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
         primarySwatch: Colors.indigo,
-        scaffoldBackgroundColor: const Color(0xFFF5F7FA), // Light grey background
+        scaffoldBackgroundColor: const Color(0xFFF5F7FA),
         appBarTheme: const AppBarTheme(
           backgroundColor: Colors.white,
           foregroundColor: Color(0xFF1A1A1A),
@@ -49,32 +54,18 @@ class MyApp extends StatelessWidget {
         ),
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF4F46E5), // Professional Indigo
+            backgroundColor: const Color(0xFF4F46E5),
             foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12), // Rounded corners
-            ),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             padding: const EdgeInsets.symmetric(vertical: 16),
             elevation: 2,
           ),
         ),
-        inputDecorationTheme: InputDecorationTheme(
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Color(0xFF4F46E5), width: 2),
-          ),
-        ),
-        cardTheme: CardThemeData( // FIX: Changed from CardTheme to CardThemeData
+        cardTheme: CardThemeData(
           elevation: 0,
           color: Colors.white,
           margin: const EdgeInsets.symmetric(vertical: 6),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       ),
       home: hasName ? const HomeScreen() : const OnboardingScreen(),
