@@ -5,8 +5,7 @@ final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
 
 class NotificationService {
-  static Future<void> scheduleShiftAlarms(Map<String, DateTime> alarms, String userName) async {
-    // Clear previous alarms to avoid duplicates
+  static Future<void> scheduleShiftAlarms(List<Map<String, DateTime>> allDaysAlarms, String userName) async {
     await flutterLocalNotificationsPlugin.cancelAll();
 
     Map<String, String> messages = {
@@ -17,38 +16,73 @@ class NotificationService {
       'shift_end': "Hey $userName, your shift has ended.",
     };
 
-    alarms.forEach((key, scheduledTime) async {
-      if (scheduledTime.isAfter(DateTime.now())) {
-        
-        const AndroidNotificationDetails androidPlatformChannelSpecifics =
-            AndroidNotificationDetails(
-          'shift_alarms',
-          'Shift Alarms',
-          channelDescription: 'Alarms for work shifts',
-          importance: Importance.max,
-          priority: Priority.high,
-          playSound: true,
-        );
-        
-        const NotificationDetails platformChannelSpecifics =
-            NotificationDetails(android: androidPlatformChannelSpecifics);
+    int id = 0;
 
-        tz.TZDateTime tzScheduledTime = tz.TZDateTime.from(scheduledTime, tz.local);
+    for (var dayAlarms in allDaysAlarms) {
+      dayAlarms.forEach((key, scheduledTime) async {
+        if (scheduledTime.isAfter(DateTime.now())) {
+          
+          const AndroidNotificationDetails androidPlatformChannelSpecifics =
+              AndroidNotificationDetails(
+            'shift_alarms',
+            'Shift Alarms',
+            channelDescription: 'Alarms for work shifts',
+            importance: Importance.max,
+            priority: Priority.high,
+            playSound: true,
+          );
+          
+          const NotificationDetails platformChannelSpecifics =
+              NotificationDetails(android: androidPlatformChannelSpecifics);
 
-        await flutterLocalNotificationsPlugin.zonedSchedule(
-          key.hashCode,
-          'Work Alarm',
-          messages[key],
-          tzScheduledTime,
-          platformChannelSpecifics,
-          androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-          uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
-        );
-      }
-    });
+          tz.TZDateTime tzScheduledTime = tz.TZDateTime.from(scheduledTime, tz.local);
+
+          await flutterLocalNotificationsPlugin.zonedSchedule(
+            id++,
+            'Work Alarm',
+            messages[key],
+            tzScheduledTime,
+            platformChannelSpecifics,
+            androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+            uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+          );
+        }
+      });
+    }
   }
 
-  // Function to cancel everything
+  // NEW: Function to schedule custom notes
+  static Future<void> scheduleCustomNote(DateTime scheduledTime, String note) async {
+    if (scheduledTime.isAfter(DateTime.now())) {
+      const AndroidNotificationDetails androidPlatformChannelSpecifics =
+          AndroidNotificationDetails(
+        'custom_notes',
+        'Custom Notes',
+        channelDescription: 'Your custom notes and alerts',
+        importance: Importance.max,
+        priority: Priority.high,
+        playSound: true,
+      );
+      
+      const NotificationDetails platformChannelSpecifics =
+          NotificationDetails(android: androidPlatformChannelSpecifics);
+
+      tz.TZDateTime tzScheduledTime = tz.TZDateTime.from(scheduledTime, tz.local);
+      // Generate a unique ID based on the time
+      int uniqueId = scheduledTime.millisecondsSinceEpoch ~/ 1000;
+
+      await flutterLocalNotificationsPlugin.zonedSchedule(
+        uniqueId,
+        'Custom Alert',
+        note,
+        tzScheduledTime,
+        platformChannelSpecifics,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+      );
+    }
+  }
+
   static Future<void> cancelAllAlarms() async {
     await flutterLocalNotificationsPlugin.cancelAll();
   }
