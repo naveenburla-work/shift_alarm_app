@@ -19,7 +19,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String _userName = '';
   bool _isLoading = false;
   List<Map<String, DateTime>> _allDaysAlarms = [];
-  List<Map<String, dynamic>> _customNotes = []; // List for custom notes
+  TextEditingController _noteController = TextEditingController();
 
   @override
   void initState() {
@@ -43,16 +43,9 @@ class _HomeScreenState extends State<HomeScreen> {
       });
     }
 
-    // Load saved custom notes
-    final String? savedNotes = prefs.getString('customNotes');
-    if (savedNotes != null) {
-      List<dynamic> decodedNotes = jsonDecode(savedNotes);
-      setState(() {
-        _customNotes = decodedNotes.map((n) => {
-          'datetime': DateTime.parse(n['datetime']),
-          'text': n['text']
-        }).toList();
-      });
+    final String? savedNote = prefs.getString('globalNote');
+    if (savedNote != null) {
+      _noteController.text = savedNote;
     }
   }
 
@@ -60,7 +53,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('userName');
     await prefs.remove('savedAlarms');
-    await prefs.remove('customNotes');
+    await prefs.remove('globalNote');
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(builder: (context) => const OnboardingScreen()),
@@ -115,16 +108,15 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _scheduleAlarms() async {
     if (_allDaysAlarms.isNotEmpty) {
-      await NotificationService.scheduleShiftAlarms(_allDaysAlarms, _userName);
-      
-      // Schedule all custom notes too
-      for (var note in _customNotes) {
-        await NotificationService.scheduleCustomNote(note['datetime'], note['text']);
-      }
+      // Save the note to memory when scheduling
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('globalNote', _noteController.text.trim());
+
+      await NotificationService.scheduleShiftAlarms(_allDaysAlarms, _userName, _noteController.text.trim());
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('All shift alarms and notes scheduled!'),
+          content: const Text('All alarms scheduled successfully!'),
           backgroundColor: Colors.green[600],
           behavior: SnackBarBehavior.floating,
         ),
@@ -136,80 +128,48 @@ class _HomeScreenState extends State<HomeScreen> {
     await NotificationService.cancelAllAlarms();
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('savedAlarms');
-    await prefs.remove('customNotes');
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: const Text('All alarms and notes have been cancelled.'),
+        content: const Text('All alarms have been cancelled.'),
         backgroundColor: Colors.grey[700],
         behavior: SnackBarBehavior.floating,
       ),
     );
     setState(() {
       _allDaysAlarms.clear();
-      _customNotes.clear();
     });
   }
 
-  // Function to add a custom note
-  void _addCustomNote(DateTime shiftDate) async {
+  void _editAlarm(int dayIndex, String alarmKey, DateTime originalTime) async {
     TimeOfDay? selectedTime = await showTimePicker(
       context: context,
-      initialTime: TimeOfDay.now(),
+      initialTime: TimeOfDay.fromDateTime(originalTime),
     );
 
-    if (selectedTime == null) return; // User cancelled time picker
+    if (selectedTime == null) return;
 
-    TextEditingController noteController = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Add Custom Note'),
-          content: TextField(
-            controller: noteController,
-            maxLines: 3,
-            decoration: const InputDecoration(hintText: 'e.g. Bring extra uniforms'),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-            ElevatedButton(
-              onPressed: () {
-                if (noteController.text.trim().isEmpty) return;
-                
-                DateTime alertTime = DateTime(
-                  shiftDate.year,
-                  shiftDate.month,
-                  shiftDate.day,
-                  selectedTime.hour,
-                  selectedTime.minute,
-                );
-
-                setState(() {
-                  _customNotes.add({
-                    'datetime': alertTime,
-                    'text': noteController.text.trim(),
-                  });
-                });
-
-                _saveCustomNotes();
-                Navigator.pop(context);
-              },
-              child: const Text('Save Note'),
-            )
-          ],
-        );
-      },
+    DateTime newTime = DateTime(
+      originalTime.year,
+      originalTime.month,
+      originalTime.day,
+      selectedTime.hour,
+      selectedTime.minute,
     );
-  }
 
-  void _saveCustomNotes() async {
+    setState(() {
+      _allDaysAlarms[dayIndex][alarmKey] = newTime;
+    });
+
     final prefs = await SharedPreferences.getInstance();
-    String encoded = jsonEncode(_customNotes.map((n) => {
-      'datetime': (n['datetime'] as DateTime).toIso8601String(),
-      'text': n['text']
-    }).toList());
-    await prefs.setString('customNotes', encoded);
+    String encoded = jsonEncode(_allDaysAlarms.map((m) => m.map((k, v) => MapEntry(k, v.toIso8601String()))).toList());
+    await prefs.setString('savedAlarms', encoded);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Alarm time updated! Tap Schedule to apply.'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   String _formatDate(DateTime dt) {
@@ -237,13 +197,39 @@ class _HomeScreenState extends State<HomeScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   
+                  // Top Note Input
+                  Card(
+                    color: const Color(0xFFFFF8E1),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text("General Note (shows in notifications)", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.amber)),
+                          const SizedBox(height: 8),
+                          TextField(
+                            controller: _noteController,
+                            maxLines: 2,
+                            decoration: const InputDecoration(
+                              hintText: 'e.g. Check with manager',
+                              filled: true,
+                              fillColor: Colors.white,
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
                   if (_allDaysAlarms.isEmpty) ...[
-                    const SizedBox(height: 40),
+                    const SizedBox(height: 20),
                     Icon(Icons.picture_as_pdf_outlined, size: 80, color: Colors.grey[400]),
                     const SizedBox(height: 16),
                     Text('Upload your schedule PDF', textAlign: TextAlign.center, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.grey[800])),
                     const SizedBox(height: 8),
-                    Text('Tap the button below to select your weekly schedule.', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey[600])),
+                    Text('Tap the button below to select your weekly schedule. This app is 100% offline.', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey[600])),
                     const SizedBox(height: 32),
                     ElevatedButton.icon(
                       onPressed: _pickPdfAndProcess,
@@ -258,14 +244,10 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    ..._allDaysAlarms.map((dayAlarms) {
+                    ..._allDaysAlarms.asMap().entries.map((dayEntry) {
+                      int dayIndex = dayEntry.key;
+                      Map<String, DateTime> dayAlarms = dayEntry.value;
                       DateTime shiftStart = dayAlarms['shift_start']!;
-                      
-                      // Find custom notes for this specific day
-                      var dayNotes = _customNotes.where((n) {
-                        DateTime dt = n['datetime'] as DateTime;
-                        return dt.day == shiftStart.day && dt.month == shiftStart.month && dt.year == shiftStart.year;
-                      }).toList();
 
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -307,35 +289,15 @@ class _HomeScreenState extends State<HomeScreen> {
 
                             return Card(
                               child: ListTile(
+                                onTap: () => _editAlarm(dayIndex, entry.key, entry.value),
                                 leading: CircleAvatar(backgroundColor: color.withOpacity(0.1), child: Icon(icon, color: color)),
                                 title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
                                 subtitle: Text("${_formatDate(entry.value)}\nNote: $note", style: const TextStyle(fontSize: 14, color: Color(0xFF4B5563))),
                                 isThreeLine: true,
+                                trailing: const Icon(Icons.edit, size: 18, color: Colors.grey),
                               ),
                             );
                           }).toList(),
-
-                          // Display Custom Notes for this day
-                          ...dayNotes.map((customNote) {
-                            return Card(
-                              color: const Color(0xFFFFF8E1), // Light amber background for notes
-                              child: ListTile(
-                                leading: const CircleAvatar(backgroundColor: Color(0xFFFFECB3), child: Icon(Icons.sticky_note_2, color: Colors.amber)),
-                                title: Text(customNote['text'], style: const TextStyle(fontWeight: FontWeight.w600)),
-                                subtitle: Text("Alert at: ${_formatDate(customNote['datetime'])}"),
-                              ),
-                            );
-                          }).toList(),
-
-                          // Button to add custom note
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: TextButton.icon(
-                              onPressed: () => _addCustomNote(shiftStart),
-                              icon: const Icon(Icons.note_add, size: 18),
-                              label: const Text('Add Note for this Day'),
-                            ),
-                          ),
                         ],
                       );
                     }).toList(),
@@ -344,13 +306,13 @@ class _HomeScreenState extends State<HomeScreen> {
                     ElevatedButton.icon(
                       onPressed: _scheduleAlarms,
                       icon: const Icon(Icons.alarm_on),
-                      label: const Text('Schedule All Alarms & Notes'),
+                      label: const Text('Schedule All Alarms'),
                     ),
                     const SizedBox(height: 12),
                     TextButton(
                       onPressed: _cancelAlarms,
                       style: TextButton.styleFrom(foregroundColor: Colors.red[400]),
-                      child: const Text('Cancel & Clear Everything'),
+                      child: const Text('Cancel & Clear All Alarms'),
                     ),
                   ],
                 ],
