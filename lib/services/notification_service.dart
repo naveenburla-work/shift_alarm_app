@@ -18,7 +18,6 @@ class NotificationService {
     };
 
     alarms.forEach((key, scheduledTime) async {
-      // Only schedule alarms that are in the future
       if (scheduledTime.isAfter(DateTime.now())) {
         
         const AndroidNotificationDetails androidPlatformChannelSpecifics =
@@ -34,13 +33,12 @@ class NotificationService {
         const NotificationDetails platformChannelSpecifics =
             NotificationDetails(android: androidPlatformChannelSpecifics);
 
-        // Convert DateTime to TZDateTime
         tz.TZDateTime tzScheduledTime = tz.TZDateTime.from(scheduledTime, tz.local);
 
         await flutterLocalNotificationsPlugin.zonedSchedule(
-          key.hashCode, // Unique ID
+          key.hashCode,
           'Work Alarm',
-          messages[key], // The message text
+          messages[key],
           tzScheduledTime,
           platformChannelSpecifics,
           androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
@@ -48,5 +46,10 @@ class NotificationService {
         );
       }
     });
+  }
+
+  // Function to cancel everything
+  static Future<void> cancelAllAlarms() async {
+    await flutterLocalNotificationsPlugin.cancelAll();
   }
 }
