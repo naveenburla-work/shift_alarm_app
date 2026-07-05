@@ -18,8 +18,8 @@ workflows:
 
       - name: Inject Permissions & Remove Internet
         script: |
-          # Add Alarm and Notification permissions
-          sed -i '' 's|<manifest xmlns:android="http://schemas.android.com/apk/res/android">|<manifest xmlns:android="http://schemas.android.com/apk/res/android">\n    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>|' android/app/src/main/AndroidManifest.xml
+          # Add Alarm, Vibrate, and Notification permissions
+          sed -i '' 's|<manifest xmlns:android="http://schemas.android.com/apk/res/android">|<manifest xmlns:android="http://schemas.android.com/apk/res/android">\n    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />\n    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>\n    <uses-permission android:name="android.permission.VIBRATE"/>|' android/app/src/main/AndroidManifest.xml
           
           # REMOVE INTERNET PERMISSIONS FOR 100% OFFLINE APP
           sed -i '' '/android.permission.INTERNET/d' android/app/src/main/AndroidManifest.xml
