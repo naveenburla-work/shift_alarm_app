@@ -31,14 +31,15 @@ class CustomNote {
 }
 
 class NoteStorage {
-  static Future<File> get _file async {
+  static Future<File> _getFile(bool isComplete) async {
     final directory = await getApplicationDocumentsDirectory();
-    return File('${directory.path}/custom_notes.json');
+    String filename = isComplete ? 'complete_notes.json' : 'non_complete_notes.json';
+    return File('${directory.path}/$filename');
   }
 
-  static Future<List<CustomNote>> readNotes() async {
+  static Future<List<CustomNote>> readNotes(bool isComplete) async {
     try {
-      final file = await _file;
+      final file = await _getFile(isComplete);
       if (!await file.exists()) return [];
       String contents = await file.readAsString();
       List<dynamic> json = jsonDecode(contents);
@@ -48,8 +49,8 @@ class NoteStorage {
     }
   }
 
-  static Future<void> writeNotes(List<CustomNote> notes) async {
-    final file = await _file;
+  static Future<void> writeNotes(List<CustomNote> notes, bool isComplete) async {
+    final file = await _getFile(isComplete);
     await file.writeAsString(jsonEncode(notes.map((e) => e.toJson()).toList()));
   }
 }
