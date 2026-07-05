@@ -344,7 +344,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 onPressed: () => _markNoteComplete(idx),
                               ),
                               IconButton(
-                                icon: const Icon(Icons.delete, color: Colors.red[800]),
+                                icon: Icon(Icons.delete, color: Colors.red[800]),
                                 onPressed: () => _deleteNote(false, idx),
                               ),
                             ],
@@ -369,7 +369,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           title: Text("(complete)", style: TextStyle(color: Colors.green[800], fontWeight: FontWeight.bold)),
                           subtitle: Text("Was scheduled: ${_formatDate(note.alertTime)}", style: TextStyle(color: Colors.green[800]?.withOpacity(0.8))),
                           trailing: IconButton(
-                            icon: const Icon(Icons.delete, color: Colors.green[800]),
+                            icon: Icon(Icons.delete, color: Colors.green[800]),
                             onPressed: () => _deleteNote(true, idx),
                           ),
                         ),
