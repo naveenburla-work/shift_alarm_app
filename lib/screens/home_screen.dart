@@ -5,6 +5,7 @@ import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/schedule_parser.dart';
 import '../services/notification_service.dart';
+import 'onboarding_screen.dart'; // Added to allow going back to name entry
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -32,6 +33,17 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  // Function to clear the name and go back to the start
+  void _changeName() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('userName');
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (context) => const OnboardingScreen()),
+      (route) => false,
+    );
+  }
+
   Future<void> _pickPdfAndProcess() async {
     FilePickerResult? result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
@@ -43,12 +55,10 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // Read PDF file
       final path = result.files.single.path;
       final File file = File(path!);
       final List<int> bytes = await file.readAsBytes();
 
-      // Extract text from PDF
       final PdfDocument document = PdfDocument(inputBytes: bytes);
       final String text = PdfTextExtractor(document).extractText();
       document.dispose();
@@ -57,7 +67,6 @@ class _HomeScreenState extends State<HomeScreen> {
         _rawText = text;
       });
 
-      // Parse the extracted text
       final scheduleData = ScheduleParser.extractSchedule(_rawText, _userName);
 
       if (scheduleData != null) {
@@ -66,14 +75,11 @@ class _HomeScreenState extends State<HomeScreen> {
         });
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not find your name or shift time. Check the RAW TEXT below.')),
+          const SnackBar(content: Text('Could not find name or shift. Check the RED text below to see what the app read.')),
         );
       }
     } catch (e) {
       debugPrint("Error processing PDF: $e");
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error reading PDF: $e')),
-      );
     } finally {
       setState(() => _isLoading = false);
     }
@@ -91,7 +97,16 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Welcome, $_userName')),
+      appBar: AppBar(
+        title: Text('Welcome, $_userName'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit),
+            tooltip: 'Change Name',
+            onPressed: _changeName, // The button to change name
+          )
+        ],
+      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
@@ -106,6 +121,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(height: 20),
                   
+                  // This red box shows exactly what the PDF text looks like to the app
                   if (_rawText.isNotEmpty) ...[
                     const Text('RAW TEXT READ FROM PDF:', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
                     Container(
