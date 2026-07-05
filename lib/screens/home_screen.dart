@@ -18,7 +18,6 @@ class _HomeScreenState extends State<HomeScreen> {
   String _userName = '';
   bool _isLoading = false;
   Map<String, DateTime>? _parsedSchedule;
-  String _rawText = '';
 
   @override
   void initState() {
@@ -62,11 +61,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final String text = PdfTextExtractor(document).extractText();
       document.dispose();
 
-      setState(() {
-        _rawText = text;
-      });
-
-      final scheduleData = ScheduleParser.extractSchedule(_rawText, _userName);
+      final scheduleData = ScheduleParser.extractSchedule(text, _userName);
 
       if (scheduleData != null) {
         setState(() {
@@ -74,7 +69,11 @@ class _HomeScreenState extends State<HomeScreen> {
         });
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not find name or shift. Check the RED text below.')),
+          SnackBar(
+            content: const Text('Could not find your name or shift in the PDF.'),
+            backgroundColor: Colors.red[400],
+            behavior: SnackBarBehavior.floating,
+          ),
         );
       }
     } catch (e) {
@@ -88,19 +87,46 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_parsedSchedule != null) {
       NotificationService.scheduleShiftAlarms(_parsedSchedule!, _userName);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('All alarms scheduled successfully!')),
+        SnackBar(
+          content: const Text('All alarms scheduled successfully!'),
+          backgroundColor: Colors.green[600],
+          behavior: SnackBarBehavior.floating,
+        ),
       );
     }
+  }
+
+  void _cancelAlarms() async {
+    await NotificationService.cancelAllAlarms();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('All alarms have been cancelled.'),
+        backgroundColor: Colors.grey[700],
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+    setState(() {
+      _parsedSchedule = null;
+    });
+  }
+
+  // Helper to format the DateTime nicely
+  String _formatDate(DateTime dt) {
+    String day = dt.day.toString().padLeft(2, '0');
+    String month = dt.month.toString().padLeft(2, '0');
+    String hour = dt.hour.toString().padLeft(2, '0');
+    String minute = dt.minute.toString().padLeft(2, '0');
+    return '$day/$month - $hour:$minute';
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Welcome, $_userName'),
+        title: const Text('Shift Alarm'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.edit),
+            icon: const Icon(Icons.logout, size: 20),
             tooltip: 'Change Name',
             onPressed: _changeName,
           )
@@ -109,39 +135,92 @@ class _HomeScreenState extends State<HomeScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
-              padding: const EdgeInsets.all(16.0),
+              padding: const EdgeInsets.all(24.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  ElevatedButton.icon(
-                    onPressed: _pickPdfAndProcess,
-                    icon: const Icon(Icons.picture_as_pdf),
-                    label: const Text('Upload Schedule PDF'),
-                  ),
-                  const SizedBox(height: 20),
                   
-                  if (_rawText.isNotEmpty) ...[
-                    const Text('RAW TEXT READ FROM PDF:', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      color: Colors.grey[200],
-                      child: Text(_rawText, style: const TextStyle(fontSize: 12)),
+                  if (_parsedSchedule == null) ...[
+                    // Empty State UI
+                    const SizedBox(height: 40),
+                    Icon(Icons.picture_as_pdf_outlined, size: 80, color: Colors.grey[400]),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Upload your schedule PDF',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.grey[800]),
                     ),
-                    const SizedBox(height: 20),
-                  ],
+                    const SizedBox(height: 8),
+                    Text(
+                      'Tap the button below to select your weekly schedule. We will automatically find your upcoming shifts.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.grey[600]),
+                    ),
+                    const SizedBox(height: 32),
+                    ElevatedButton.icon(
+                      onPressed: _pickPdfAndProcess,
+                      icon: const Icon(Icons.upload_file),
+                      label: const Text('Select PDF File'),
+                    ),
+                  ] else ...[
+                    // Loaded State UI
+                    const Text(
+                      'Upcoming Shift Details',
+                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    ..._parsedSchedule!.entries.map((entry) {
+                      IconData icon;
+                      Color color;
+                      String title = entry.key.replaceAll('_', ' ').toUpperCase();
+                      
+                      if (entry.key == 'get_ready') {
+                        icon = Icons.notifications_active;
+                        color = Colors.orange;
+                      } else if (entry.key == 'shift_start') {
+                        icon = Icons.play_circle_fill;
+                        color = Colors.green;
+                      } else if (entry.key == 'meal_start') {
+                        icon = Icons.restaurant;
+                        color = Colors.blue;
+                      } else if (entry.key == 'meal_end') {
+                        icon = Icons.restaurant_menu;
+                        color = Colors.purple;
+                      } else {
+                        icon = Icons.flag;
+                        color = Colors.red;
+                      }
 
-                  if (_parsedSchedule != null) ...[
-                    const Text('Detected Schedule:', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 10),
-                    ..._parsedSchedule!.entries.map((entry) => ListTile(
-                      title: Text(entry.key.replaceAll('_', ' ').toUpperCase()),
-                      subtitle: Text(entry.value.toString()),
-                    )).toList(),
-                    const SizedBox(height: 20),
-                    ElevatedButton(
+                      return Card(
+                        child: ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: color.withOpacity(0.1),
+                            child: Icon(icon, color: color),
+                          ),
+                          title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                          subtitle: Text(_formatDate(entry.value), style: const TextStyle(fontSize: 16, color: Color(0xFF4B5563))),
+                        ),
+                      );
+                    }).toList(),
+
+                    const SizedBox(height: 24),
+                    ElevatedButton.icon(
                       onPressed: _scheduleAlarms,
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                      child: const Text('Schedule All Alarms'),
+                      icon: const Icon(Icons.alarm_on),
+                      label: const Text('Schedule All Alarms'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextButton(
+                      onPressed: _cancelAlarms,
+                      style: TextButton.styleFrom(foregroundColor: Colors.red[400]),
+                      child: const Text('Cancel All Alarms'),
+                    ),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: _pickPdfAndProcess,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Upload Different PDF'),
                     ),
                   ],
                 ],
