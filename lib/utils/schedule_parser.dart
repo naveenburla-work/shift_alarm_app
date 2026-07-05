@@ -1,7 +1,6 @@
 import 'package:intl/intl.dart';
 
 class ScheduleParser {
-  // Notice the return type is now a List of Maps, so it returns all 7 days
   static List<Map<String, DateTime>> extractSchedule(String rawText, String userName) {
     RegExp dateRegex = RegExp(r'\b\d{1,2}-[A-Za-z]{3}-\d{2,4}\b');
     var dateMatches = dateRegex.allMatches(rawText);
@@ -12,7 +11,13 @@ class ScheduleParser {
     if (nameIndex == -1) return [];
 
     String remainingText = rawText.substring(nameIndex + userName.length);
-    RegExp shiftRegex = RegExp(r'[^\s]+');
+    
+    // This regex ONLY looks for exact shift patterns and ignores names like "Burla"
+    RegExp shiftRegex = RegExp(
+      r'(OFF(?:-R)?|IN(?:-Open)?|(?:1[0-2]|0?[1-9])(?:[:.][0-5][0-9])?\s*[APap][Mm](?:\s*-\s*(?:1[0-2]|0?[1-9])(?:[:.][0-5][0-9])?\s*[APap][Mm])?|(?:1[0-2]|0?[1-9])(?:[:.][0-5][0-9])?\s*[APap][Mm]\s*Open)',
+      caseSensitive: false
+    );
+    
     var shiftMatches = shiftRegex.allMatches(remainingText);
     List<String> shifts = shiftMatches.take(7).map((m) => m.group(0)!).toList();
 
