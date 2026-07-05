@@ -5,7 +5,7 @@ final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
 
 class NotificationService {
-  static Future<void> scheduleShiftAlarms(List<Map<String, DateTime>> allDaysAlarms, String userName, String customNote) async {
+  static Future<void> scheduleShiftAlarms(List<Map<String, DateTime>> allDaysAlarms, String userName) async {
     await flutterLocalNotificationsPlugin.cancelAll();
 
     Map<String, String> messages = {
@@ -26,7 +26,6 @@ class NotificationService {
               AndroidNotificationDetails(
             'shift_alarms',
             'Shift Alarms',
-            channelDescription: 'Alarms for work shifts',
             importance: Importance.max,
             priority: Priority.high,
             playSound: true,
@@ -37,16 +36,10 @@ class NotificationService {
 
           tz.TZDateTime tzScheduledTime = tz.TZDateTime.from(scheduledTime, tz.local);
 
-          // Add the custom note to the message if it's not empty
-          String finalMessage = messages[key]!;
-          if (customNote.trim().isNotEmpty) {
-            finalMessage += "\nNote: $customNote";
-          }
-
           await flutterLocalNotificationsPlugin.zonedSchedule(
             id++,
             'Work Alarm',
-            finalMessage,
+            messages[key],
             tzScheduledTime,
             platformChannelSpecifics,
             androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
@@ -54,6 +47,39 @@ class NotificationService {
           );
         }
       });
+    }
+  }
+
+  static Future<void> scheduleCustomNote(DateTime scheduledTime, String note, String noteId) async {
+    if (scheduledTime.isAfter(DateTime.now())) {
+      // Calculate time until midnight to auto-cancel the notification
+      DateTime midnight = DateTime(scheduledTime.year, scheduledTime.month, scheduledTime.day + 1);
+      int timeoutMillis = midnight.difference(scheduledTime).inMilliseconds;
+
+      AndroidNotificationDetails androidPlatformChannelSpecifics = AndroidNotificationDetails(
+        'custom_notes',
+        'Custom Notes',
+        importance: Importance.max,
+        priority: Priority.high,
+        playSound: true,
+        ongoing: true, // Prevents user from swiping it away
+        autoCancel: false,
+        timeoutAfter: timeoutMillis, // Auto-deletes at midnight
+      );
+      
+      NotificationDetails platformChannelSpecifics = NotificationDetails(android: androidPlatformChannelSpecifics);
+
+      tz.TZDateTime tzScheduledTime = tz.TZDateTime.from(scheduledTime, tz.local);
+
+      await flutterLocalNotificationsPlugin.zonedSchedule(
+        noteId.hashCode,
+        'Custom Alert',
+        note,
+        tzScheduledTime,
+        platformChannelSpecifics,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+      );
     }
   }
 
