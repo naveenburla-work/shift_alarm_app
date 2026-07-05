@@ -1,6 +1,7 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/schedule_parser.dart';
 import '../services/notification_service.dart';
@@ -31,37 +32,49 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  Future<void> _pickImageAndProcess() async {
-    final ImagePicker picker = ImagePicker();
-    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
-    
-    if (image == null) return;
+  Future<void> _pickPdfAndProcess() async {
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf'],
+    );
+
+    if (result == null) return;
 
     setState(() => _isLoading = true);
 
-    final InputImage inputImage = InputImage.fromFilePath(image.path);
-    final TextRecognizer textRecognizer = TextRecognizer();
-    
     try {
-      final RecognizedText recognizedText = await textRecognizer.processImage(inputImage);
-      _rawText = recognizedText.text;
+      // Read PDF file
+      final path = result.files.single.path;
+      final File file = File(path!);
+      final List<int> bytes = await file.readAsBytes();
+
+      // Extract text from PDF
+      final PdfDocument document = PdfDocument(inputBytes: bytes);
+      final String text = PdfTextExtractor(document).extractText();
+      document.dispose();
+
+      setState(() {
+        _rawText = text;
+      });
 
       // Parse the extracted text
       final scheduleData = ScheduleParser.extractSchedule(_rawText, _userName);
-      
+
       if (scheduleData != null) {
         setState(() {
           _parsedSchedule = scheduleData;
         });
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not find your name or shift time in the photo.')),
+          const SnackBar(content: Text('Could not find your name or shift time. Check the RAW TEXT below.')),
         );
       }
     } catch (e) {
-      debugPrint("Error processing image: $e");
+      debugPrint("Error processing PDF: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error reading PDF: $e')),
+      );
     } finally {
-      textRecognizer.close();
       setState(() => _isLoading = false);
     }
   }
@@ -87,11 +100,22 @@ class _HomeScreenState extends State<HomeScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   ElevatedButton.icon(
-                    onPressed: _pickImageAndProcess,
-                    icon: const Icon(Icons.upload_file),
-                    label: const Text('Upload Schedule Photo'),
+                    onPressed: _pickPdfAndProcess,
+                    icon: const Icon(Icons.picture_as_pdf),
+                    label: const Text('Upload Schedule PDF'),
                   ),
                   const SizedBox(height: 20),
+                  
+                  if (_rawText.isNotEmpty) ...[
+                    const Text('RAW TEXT READ FROM PDF:', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      color: Colors.grey[200],
+                      child: Text(_rawText, style: const TextStyle(fontSize: 12)),
+                    ),
+                    const SizedBox(height: 20),
+                  ],
+
                   if (_parsedSchedule != null) ...[
                     const Text('Detected Schedule:', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 10),
