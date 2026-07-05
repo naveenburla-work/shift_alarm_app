@@ -28,7 +28,10 @@ class NotificationService {
             importance: Importance.max,
             priority: Priority.max,
             playSound: true,
+            enableVibration: true,
             category: AndroidNotificationCategory.alarm,
+            fullScreenIntent: true, // Wakes the screen up
+            audioAttributesUsage: AudioAttributesUsage.alarm, // Uses ALARM volume, not notification volume
           );
           
           NotificationDetails platformChannelSpecifics =
@@ -55,16 +58,19 @@ class NotificationService {
       DateTime midnight = DateTime(scheduledTime.year, scheduledTime.month, scheduledTime.day + 1);
       int timeoutMillis = midnight.difference(scheduledTime).inMilliseconds;
 
-      AndroidNotificationDetails androidPlatformChannelSpecifics = AndroidNotificationDetails(
+      AndroidNotificationDetails androidPlatformChannelSpecifics = const AndroidNotificationDetails(
         'custom_notes',
         'Custom Notes',
         importance: Importance.max,
         priority: Priority.max,
         playSound: true,
+        enableVibration: true,
         ongoing: true,
         autoCancel: false,
         timeoutAfter: timeoutMillis,
         category: AndroidNotificationCategory.alarm,
+        fullScreenIntent: true,
+        audioAttributesUsage: AudioAttributesUsage.alarm,
       );
       
       NotificationDetails platformChannelSpecifics = NotificationDetails(android: androidPlatformChannelSpecifics);
@@ -73,7 +79,7 @@ class NotificationService {
       await flutterLocalNotificationsPlugin.zonedSchedule(
         noteId.hashCode,
         'Custom Alert',
-        note, // The note text displays in the mobile notification alert
+        note,
         tzScheduledTime,
         platformChannelSpecifics,
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
