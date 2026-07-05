@@ -68,7 +68,7 @@ class MyApp extends StatelessWidget {
             borderSide: const BorderSide(color: Color(0xFF4F46E5), width: 2),
           ),
         ),
-        cardTheme: CardTheme(
+        cardTheme: CardThemeData( // FIX: Changed from CardTheme to CardThemeData
           elevation: 0,
           color: Colors.white,
           margin: const EdgeInsets.symmetric(vertical: 6),
