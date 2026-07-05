@@ -21,17 +21,17 @@ class NotificationService {
     for (var dayAlarms in allDaysAlarms) {
       dayAlarms.forEach((key, scheduledTime) async {
         if (scheduledTime.isAfter(DateTime.now())) {
-          
-          const AndroidNotificationDetails androidPlatformChannelSpecifics =
-              AndroidNotificationDetails(
+          AndroidNotificationDetails androidPlatformChannelSpecifics =
+              const AndroidNotificationDetails(
             'shift_alarms',
             'Shift Alarms',
             importance: Importance.max,
-            priority: Priority.high,
+            priority: Priority.max,
             playSound: true,
+            category: AndroidNotificationCategory.alarm,
           );
           
-          const NotificationDetails platformChannelSpecifics =
+          NotificationDetails platformChannelSpecifics =
               NotificationDetails(android: androidPlatformChannelSpecifics);
 
           tz.TZDateTime tzScheduledTime = tz.TZDateTime.from(scheduledTime, tz.local);
@@ -52,7 +52,6 @@ class NotificationService {
 
   static Future<void> scheduleCustomNote(DateTime scheduledTime, String note, String noteId) async {
     if (scheduledTime.isAfter(DateTime.now())) {
-      // Calculate time until midnight to auto-cancel the notification
       DateTime midnight = DateTime(scheduledTime.year, scheduledTime.month, scheduledTime.day + 1);
       int timeoutMillis = midnight.difference(scheduledTime).inMilliseconds;
 
@@ -60,21 +59,21 @@ class NotificationService {
         'custom_notes',
         'Custom Notes',
         importance: Importance.max,
-        priority: Priority.high,
+        priority: Priority.max,
         playSound: true,
-        ongoing: true, // Prevents user from swiping it away
+        ongoing: true,
         autoCancel: false,
-        timeoutAfter: timeoutMillis, // Auto-deletes at midnight
+        timeoutAfter: timeoutMillis,
+        category: AndroidNotificationCategory.alarm,
       );
       
       NotificationDetails platformChannelSpecifics = NotificationDetails(android: androidPlatformChannelSpecifics);
-
       tz.TZDateTime tzScheduledTime = tz.TZDateTime.from(scheduledTime, tz.local);
 
       await flutterLocalNotificationsPlugin.zonedSchedule(
         noteId.hashCode,
         'Custom Alert',
-        note,
+        note, // The note text displays in the mobile notification alert
         tzScheduledTime,
         platformChannelSpecifics,
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
