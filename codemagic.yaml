@@ -16,9 +16,14 @@ workflows:
           rm pubspec.yaml
           mv pubspec_user.yaml pubspec.yaml
 
-      - name: Inject Permissions
+      - name: Inject Permissions & Remove Internet
         script: |
+          # Add Alarm and Notification permissions
           sed -i '' 's|<manifest xmlns:android="http://schemas.android.com/apk/res/android">|<manifest xmlns:android="http://schemas.android.com/apk/res/android">\n    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>|' android/app/src/main/AndroidManifest.xml
+          
+          # REMOVE INTERNET PERMISSIONS FOR 100% OFFLINE APP
+          sed -i '' '/android.permission.INTERNET/d' android/app/src/main/AndroidManifest.xml
+          sed -i '' '/android.permission.ACCESS_NETWORK_STATE/d' android/app/src/main/AndroidManifest.xml
 
       - name: Inject Java 8 Desugaring
         script: |
@@ -38,7 +43,7 @@ workflows:
           find /Users/builder/.pub-cache/hosted/pub.dev/ -name "*.gradle" -o -name "*.gradle.kts" | xargs perl -pi -e 's/compileSdk(?:Version)?\s+\d+/compileSdk 36/g'
         
       - name: Build Release APK
-        script: flutter build apk --release
+        script: flutter build apk --release --split-per-abi --obfuscate --split-debug-info=build/debug-info
         
     artifacts:
       - build/**/outputs/**/*.apk
