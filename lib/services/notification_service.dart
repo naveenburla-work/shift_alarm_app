@@ -21,8 +21,8 @@ class NotificationService {
     for (var dayAlarms in allDaysAlarms) {
       dayAlarms.forEach((key, scheduledTime) async {
         if (scheduledTime.isAfter(DateTime.now())) {
-          AndroidNotificationDetails androidPlatformChannelSpecifics =
-              const AndroidNotificationDetails(
+          AndroidNotificationDetails androidPlatformChannelSpecifics = 
+            AndroidNotificationDetails(
             'shift_alarms',
             'Shift Alarms',
             importance: Importance.max,
@@ -59,7 +59,7 @@ class NotificationService {
       int timeoutMillis = midnight.difference(scheduledTime).inMilliseconds;
 
       AndroidNotificationDetails androidPlatformChannelSpecifics = const AndroidNotificationDetails(
-        'custom_notes',
+        'schedule Custom Note',
         'Custom Notes',
         importance: Importance.max,
         priority: Priority.max,
