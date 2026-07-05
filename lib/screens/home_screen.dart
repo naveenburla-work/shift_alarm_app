@@ -20,7 +20,8 @@ class _HomeScreenState extends State<HomeScreen> {
   String _userName = '';
   bool _isLoading = false;
   List<Map<String, DateTime>> _allDaysAlarms = [];
-  List<CustomNote> _customNotes = [];
+  List<CustomNote> _completeNotes = [];
+  List<CustomNote> _nonCompleteNotes = [];
 
   @override
   void initState() {
@@ -44,11 +45,27 @@ class _HomeScreenState extends State<HomeScreen> {
       });
     }
 
-    // Load saved notes from file
-    List<CustomNote> notes = await NoteStorage.readNotes();
+    List<CustomNote> complete = await NoteStorage.readNotes(true);
+    List<CustomNote> nonComplete = await NoteStorage.readNotes(false);
+    
+    // Auto-move expired non-complete notes to complete file if date passed
+    DateTime todayMidnight = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
+    List<CustomNote> stillNonComplete = [];
+    for (var note in nonComplete) {
+      if (note.alertTime.isBefore(todayMidnight)) {
+        complete.add(note);
+      } else {
+        stillNonComplete.add(note);
+      }
+    }
+
     setState(() {
-      _customNotes = notes;
+      _completeNotes = complete;
+      _nonCompleteNotes = stillNonComplete;
     });
+
+    await NoteStorage.writeNotes(_completeNotes, true);
+    await NoteStorage.writeNotes(_nonCompleteNotes, false);
   }
 
   void _changeName() async {
@@ -221,16 +238,16 @@ class _HomeScreenState extends State<HomeScreen> {
                 );
 
                 setState(() {
-                  _customNotes.add(newNote);
+                  _nonCompleteNotes.add(newNote);
                 });
 
-                await NoteStorage.writeNotes(_customNotes);
+                await NoteStorage.writeNotes(_nonCompleteNotes, false);
                 await NotificationService.scheduleCustomNote(alertTime, newNote.text, noteId);
 
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: const Text('Custom note alert scheduled! It will stay until midnight.'),
+                    content: const Text('Custom note alert scheduled! It will ring at the set time.'),
                     backgroundColor: Colors.green[600],
                     behavior: SnackBarBehavior.floating,
                   ),
@@ -245,10 +262,29 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _markNoteComplete(int index) async {
+    CustomNote note = _nonCompleteNotes[index];
+    note.isCompleted = true;
+    
     setState(() {
-      _customNotes[index].isCompleted = true;
+      _nonCompleteNotes.removeAt(index);
+      _completeNotes.add(note);
     });
-    await NoteStorage.writeNotes(_customNotes);
+
+    await NoteStorage.writeNotes(_nonCompleteNotes, false);
+    await NoteStorage.writeNotes(_completeNotes, true);
+  }
+
+  void _deleteNote(bool isComplete, int index) async {
+    setState(() {
+      if (isComplete) {
+        _completeNotes.removeAt(index);
+      } else {
+        _nonCompleteNotes.removeAt(index);
+      }
+    });
+
+    await NoteStorage.writeNotes(_completeNotes, true);
+    await NoteStorage.writeNotes(_nonCompleteNotes, false);
   }
 
   String _formatDate(DateTime dt) {
@@ -287,47 +323,55 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // DISPLAY CUSTOM NOTES FROM FILE
-                  if (_customNotes.isNotEmpty) ...[
-                    const Text("Saved Notes", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  // DISPLAY NON-COMPLETE NOTES (RED)
+                  if (_nonCompleteNotes.isNotEmpty) ...[
+                    const Text("Non-Complete Notes", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.red)),
                     const SizedBox(height: 8),
-                    ..._customNotes.asMap().entries.map((entry) {
+                    ..._nonCompleteNotes.asMap().entries.map((entry) {
                       int idx = entry.key;
                       CustomNote note = entry.value;
                       
-                      // Determine if the note is Red or Green
-                      DateTime todayMidnight = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
-                      bool isPast = note.alertTime.isBefore(todayMidnight);
-                      
-                      Color cardColor;
-                      Color textColor;
-                      String statusText;
-
-                      if (note.isCompleted) {
-                        cardColor = Colors.green[50]!;
-                        textColor = Colors.green[800]!;
-                        statusText = "(complete)";
-                      } else if (isPast) {
-                        cardColor = Colors.red[50]!;
-                        textColor = Colors.red[800]!;
-                        statusText = "(not complete)";
-                      } else {
-                        cardColor = Colors.amber[50]!;
-                        textColor = Colors.amber[800]!;
-                        statusText = "(pending)";
-                      }
-
                       return Card(
-                        color: cardColor,
+                        color: Colors.red[50],
                         child: ListTile(
-                          title: Text("${note.text} $statusText", style: TextStyle(color: textColor, fontWeight: FontWeight.bold)),
-                          subtitle: Text("Scheduled: ${_formatDate(note.alertTime)}", style: TextStyle(color: textColor.withOpacity(0.8))),
-                          trailing: note.isCompleted 
-                            ? const Icon(Icons.check_circle, color: Colors.green)
-                            : TextButton(
+                          title: Text("(not complete)", style: TextStyle(color: Colors.red[800], fontWeight: FontWeight.bold)),
+                          subtitle: Text("Scheduled: ${_formatDate(note.alertTime)}", style: TextStyle(color: Colors.red[800]?.withOpacity(0.8))),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.check_circle, color: Colors.green),
                                 onPressed: () => _markNoteComplete(idx),
-                                child: const Text("Mark Done"),
                               ),
+                              IconButton(
+                                icon: const Icon(Icons.delete, color: Colors.red[800]),
+                                onPressed: () => _deleteNote(false, idx),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                    const SizedBox(height: 16),
+                  ],
+
+                  // DISPLAY COMPLETE NOTES (GREEN)
+                  if (_completeNotes.isNotEmpty) ...[
+                    const Text("Complete Notes", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.green)),
+                    const SizedBox(height: 8),
+                    ..._completeNotes.asMap().entries.map((entry) {
+                      int idx = entry.key;
+                      CustomNote note = entry.value;
+                      
+                      return Card(
+                        color: Colors.green[50],
+                        child: ListTile(
+                          title: Text("(complete)", style: TextStyle(color: Colors.green[800], fontWeight: FontWeight.bold)),
+                          subtitle: Text("Was scheduled: ${_formatDate(note.alertTime)}", style: TextStyle(color: Colors.green[800]?.withOpacity(0.8))),
+                          trailing: IconButton(
+                            icon: const Icon(Icons.delete, color: Colors.green[800]),
+                            onPressed: () => _deleteNote(true, idx),
+                          ),
                         ),
                       );
                     }).toList(),
