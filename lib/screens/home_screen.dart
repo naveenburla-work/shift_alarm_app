@@ -1,11 +1,10 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:file_picker/file_picker.dart';
-import 'package:syncfusion_flutter_pdf/pdf.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/schedule_parser.dart';
 import '../services/notification_service.dart';
-import 'onboarding_screen.dart'; // Added to allow going back to name entry
+import 'onboarding_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -44,27 +43,22 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Future<void> _pickPdfAndProcess() async {
-    FilePickerResult? result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['pdf'],
-    );
-
-    if (result == null) return;
+  Future<void> _pickImageAndProcess() async {
+    final ImagePicker picker = ImagePicker();
+    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+    
+    if (image == null) return;
 
     setState(() => _isLoading = true);
 
+    final InputImage inputImage = InputImage.fromFilePath(image.path);
+    final TextRecognizer textRecognizer = TextRecognizer();
+    
     try {
-      final path = result.files.single.path;
-      final File file = File(path!);
-      final List<int> bytes = await file.readAsBytes();
-
-      final PdfDocument document = PdfDocument(inputBytes: bytes);
-      final String text = PdfTextExtractor(document).extractText();
-      document.dispose();
-
+      final RecognizedText recognizedText = await textRecognizer.processImage(inputImage);
+      
       setState(() {
-        _rawText = text;
+        _rawText = recognizedText.text;
       });
 
       final scheduleData = ScheduleParser.extractSchedule(_rawText, _userName);
@@ -79,8 +73,9 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       }
     } catch (e) {
-      debugPrint("Error processing PDF: $e");
+      debugPrint("Error processing image: $e");
     } finally {
+      textRecognizer.close();
       setState(() => _isLoading = false);
     }
   }
@@ -103,7 +98,7 @@ class _HomeScreenState extends State<HomeScreen> {
           IconButton(
             icon: const Icon(Icons.edit),
             tooltip: 'Change Name',
-            onPressed: _changeName, // The button to change name
+            onPressed: _changeName, 
           )
         ],
       ),
@@ -115,15 +110,14 @@ class _HomeScreenState extends State<HomeScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   ElevatedButton.icon(
-                    onPressed: _pickPdfAndProcess,
-                    icon: const Icon(Icons.picture_as_pdf),
-                    label: const Text('Upload Schedule PDF'),
+                    onPressed: _pickImageAndProcess,
+                    icon: const Icon(Icons.upload_file),
+                    label: const Text('Upload Schedule Screenshot'),
                   ),
                   const SizedBox(height: 20),
                   
-                  // This red box shows exactly what the PDF text looks like to the app
                   if (_rawText.isNotEmpty) ...[
-                    const Text('RAW TEXT READ FROM PDF:', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
+                    const Text('RAW TEXT READ BY APP:', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
                     Container(
                       padding: const EdgeInsets.all(8),
                       color: Colors.grey[200],
