@@ -5,7 +5,7 @@ final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
 
 class NotificationService {
-  static Future<void> scheduleShiftAlarms(List<Map<String, DateTime>> allDaysAlarms, String userName) async {
+  static Future<void> scheduleShiftAlarms(List<Map<String, DateTime>> allDaysAlarms, String userName, String customNote) async {
     await flutterLocalNotificationsPlugin.cancelAll();
 
     Map<String, String> messages = {
@@ -37,10 +37,16 @@ class NotificationService {
 
           tz.TZDateTime tzScheduledTime = tz.TZDateTime.from(scheduledTime, tz.local);
 
+          // Add the custom note to the message if it's not empty
+          String finalMessage = messages[key]!;
+          if (customNote.trim().isNotEmpty) {
+            finalMessage += "\nNote: $customNote";
+          }
+
           await flutterLocalNotificationsPlugin.zonedSchedule(
             id++,
             'Work Alarm',
-            messages[key],
+            finalMessage,
             tzScheduledTime,
             platformChannelSpecifics,
             androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
@@ -48,38 +54,6 @@ class NotificationService {
           );
         }
       });
-    }
-  }
-
-  // NEW: Function to schedule custom notes
-  static Future<void> scheduleCustomNote(DateTime scheduledTime, String note) async {
-    if (scheduledTime.isAfter(DateTime.now())) {
-      const AndroidNotificationDetails androidPlatformChannelSpecifics =
-          AndroidNotificationDetails(
-        'custom_notes',
-        'Custom Notes',
-        channelDescription: 'Your custom notes and alerts',
-        importance: Importance.max,
-        priority: Priority.high,
-        playSound: true,
-      );
-      
-      const NotificationDetails platformChannelSpecifics =
-          NotificationDetails(android: androidPlatformChannelSpecifics);
-
-      tz.TZDateTime tzScheduledTime = tz.TZDateTime.from(scheduledTime, tz.local);
-      // Generate a unique ID based on the time
-      int uniqueId = scheduledTime.millisecondsSinceEpoch ~/ 1000;
-
-      await flutterLocalNotificationsPlugin.zonedSchedule(
-        uniqueId,
-        'Custom Alert',
-        note,
-        tzScheduledTime,
-        platformChannelSpecifics,
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
-      );
     }
   }
 
