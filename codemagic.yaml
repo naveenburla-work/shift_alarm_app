@@ -38,16 +38,16 @@ workflows:
       - name: Get Flutter packages
         script: flutter pub get
         
-      - name: Force Android 15 (SDK 35) for all packages
+      - name: Force Android 15 (SDK 36) for all packages
         script: |
-          # Force compileSdk to 35
-          find /Users/builder/.pub-cache/hosted/pub.dev/ -name "*.gradle" -o -name "*.gradle.kts" | xargs perl -pi -e 's/compileSdk(?:Version)?\s+\d+/compileSdk 35/g'
+          # Force compileSdk to 36
+          find /Users/builder/.pub-cache/hosted/pub.dev/ -name "*.gradle" -o -name "*.gradle.kts" | xargs perl -pi -e 's/compileSdk(?:Version)?\s+\d+/compileSdk 36/g'
           
-          # Force targetSdk to 35 in the main app
+          # Force targetSdk to 36 in the main app
           if [ -f "android/app/build.gradle.kts" ]; then
-            sed -i '' 's/targetSdkVersion flutter.targetSdkVersion/targetSdkVersion 35/' android/app/build.gradle.kts
+            sed -i '' 's/targetSdkVersion flutter.targetSdkVersion/targetSdkVersion 36/' android/app/build.gradle.kts
           else
-            sed -i '' 's/targetSdkVersion flutter.targetSdkVersion/targetSdkVersion 35/' android/app/build.gradle
+            sed -i '' 's/targetSdkVersion flutter.targetSdkVersion/targetSdkVersion 36/' android/app/build.gradle
           fi
         
       - name: Build Release APK
