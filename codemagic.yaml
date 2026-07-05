@@ -7,81 +7,35 @@ workflows:
     scripts:
       - name: Generate pristine project
         script: |
-          # Move your code out of the way
           mv lib lib_user
           mv pubspec.yaml pubspec_user.yaml
-          
-          # Delete all old boilerplate files causing errors
           rm -rf android ios test
-          
-          # Create a 100% fresh standard Flutter project
           flutter create --project-name shift_alarm_app --platforms=android --org com.example .
-          
-          # Put your code back
           rm -rf lib
           mv lib_user lib
           rm pubspec.yaml
           mv pubspec_user.yaml pubspec.yaml
 
-      - name: Safely inject permissions and settings
+      - name: Inject Permissions
         script: |
-          python3 - <<'PY'
-          import os
+          sed -i '' 's|<manifest xmlns:android="http://schemas.android.com/apk/res/android">|<manifest xmlns:android="http://schemas.android.com/apk/res/android">\n    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>|' android/app/src/main/AndroidManifest.xml
 
-          # 1. Add permissions to AndroidManifest.xml
-          manifest_path = "android/app/src/main/AndroidManifest.xml"
-          with open(manifest_path, "r") as f:
-                    - name: Fix ALL outdated SDK versions
+      - name: Inject Java 8 Desugaring
         script: |
-          # This regex finds ANY compileSdk version (29, 31, 34, etc.) and forces it to 36
-          find /Users/builder/.pub-cache/hosted/pub.dev/ -name "*.gradle" -o -name "*.gradle.kts" | xargs perl -pi -e 's/compileSdk(?:Version)?\s+\d+/compileSdk 36/g'
-                  '<manifest xmlns:android="http://schemas.android.com/apk/res/android">',
-                  '<manifest xmlns:android="http://schemas.android.com/apk/res/android">\n    <uses-permission android:name="android.permission.CAMERA" />\n    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>'
-              )
-              with open(manifest_path, "w") as f:
-                  f.write(content)
-
-          # 2. Add Java 8 Desugaring to build.gradle or build.gradle.kts
-          gradle_path = "android/app/build.gradle"
-          is_kotlin = False
-          if not os.path.exists(gradle_path):
-              gradle_path = "android/app/build.gradle.kts"
-              is_kotlin = True
-
-          with open(gradle_path, "r") as f:
-              content = f.read()
-
-          if is_kotlin:
-              # Kotlin DSL syntax (uses = and parentheses)
-              if "isCoreLibraryDesugaringEnabled" not in content:
-                  content = content.replace(
-                      "compileOptions {",
-                      "compileOptions {\n        isCoreLibraryDesugaringEnabled = true"
-                  )
-              if "coreLibraryDesugaring(" not in content:
-                  # Safely append to the end of the file
-                  content += '\n\ndependencies {\n    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:1.2.2")\n}\n'
-          else:
-              # Groovy syntax (uses spaces)
-              if "coreLibraryDesugaringEnabled" not in content:
-                  content = content.replace(
-                      "compileOptions {",
-                      "compileOptions {\n        coreLibraryDesugaringEnabled true"
-                  )
-              if "coreLibraryDesugaring " not in content:
-                  content += '\n\ndependencies {\n    coreLibraryDesugaring "com.android.tools:desugar_jdk_libs:1.2.2"\n}\n'
-
-          with open(gradle_path, "w") as f:
-              f.write(content)
-          PY
+          if [ -f "android/app/build.gradle.kts" ]; then
+            sed -i '' 's|compileOptions {|compileOptions {\n        isCoreLibraryDesugaringEnabled = true|' android/app/build.gradle.kts
+            printf '\ndependencies {\n    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:1.2.2")\n}\n' >> android/app/build.gradle.kts
+          else
+            sed -i '' 's|compileOptions {|compileOptions {\n        coreLibraryDesugaringEnabled true|' android/app/build.gradle
+            printf '\ndependencies {\n    coreLibraryDesugaring "com.android.tools:desugar_jdk_libs:1.2.2"\n}\n' >> android/app/build.gradle
+          fi
 
       - name: Get Flutter packages
         script: flutter pub get
         
-      - name: Fix ALL outdated ML Kit SDK versions
+      - name: Fix ALL outdated SDK versions
         script: |
-          # This regex finds ANY compileSdk version (29, 31, 32, etc.) and forces it to 34
-          find /Users/builder/.pub-cache/hosted/pub.dev/ -name "*.gradle" -o -name "*.gradle.kts" | xargs perl -pi -e 's/compileSdk(?:Version)?\s+\d+/compileSdk 34/g'
+          find /Users/builder/.pub-cache/hosted/pub.dev/ -name "*.gradle" -o -name "*.gradle.kts" | xargs perl -pi -e 's/compileSdk(?:Version)?\s+\d+/compileSdk 36/g'
         
       - name: Build Debug APK
         script: flutter build apk --debug
