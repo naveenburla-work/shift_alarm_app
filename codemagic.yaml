@@ -31,9 +31,10 @@ workflows:
           # 1. Add permissions to AndroidManifest.xml
           manifest_path = "android/app/src/main/AndroidManifest.xml"
           with open(manifest_path, "r") as f:
-              content = f.read()
-          if "android.permission.CAMERA" not in content:
-              content = content.replace(
+                    - name: Fix ALL outdated SDK versions
+        script: |
+          # This regex finds ANY compileSdk version (29, 31, 34, etc.) and forces it to 36
+          find /Users/builder/.pub-cache/hosted/pub.dev/ -name "*.gradle" -o -name "*.gradle.kts" | xargs perl -pi -e 's/compileSdk(?:Version)?\s+\d+/compileSdk 36/g'
                   '<manifest xmlns:android="http://schemas.android.com/apk/res/android">',
                   '<manifest xmlns:android="http://schemas.android.com/apk/res/android">\n    <uses-permission android:name="android.permission.CAMERA" />\n    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>'
               )
