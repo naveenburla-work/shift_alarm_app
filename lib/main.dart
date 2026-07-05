@@ -22,10 +22,14 @@ void main() async {
   
   await flutterLocalNotificationsPlugin.initialize(initializationSettings);
 
-  // FORCE Android to grant notification permissions so alarms ring
-  await flutterLocalNotificationsPlugin
-      .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
-      ?.requestNotificationsPermission();
+  final AndroidFlutterLocalNotificationsPlugin? androidImplementation =
+      flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+
+  // 1. Ask for basic notification permission
+  await androidImplementation?.requestNotificationsPermission();
+  
+  // 2. Ask for EXACT ALARM permission (Required for Android 14 / S24 Ultra)
+  await androidImplementation?.requestExactAlarmsPermission();
 
   final prefs = await SharedPreferences.getInstance();
   final String? userName = prefs.getString('userName');
