@@ -21,8 +21,8 @@ class NotificationService {
     for (var dayAlarms in allDaysAlarms) {
       dayAlarms.forEach((key, scheduledTime) async {
         if (scheduledTime.isAfter(DateTime.now())) {
-          AndroidNotificationDetails androidPlatformChannelSpecifics =
-              const AndroidNotificationDetails(
+          const AndroidNotificationDetails androidPlatformChannelSpecifics =
+              AndroidNotificationDetails(
             'shift_alarms',
             'Shift Alarms',
             importance: Importance.max,
@@ -34,7 +34,7 @@ class NotificationService {
             audioAttributesUsage: AudioAttributesUsage.alarm, 
           );
           
-          NotificationDetails platformChannelSpecifics =
+          const NotificationDetails platformChannelSpecifics =
               NotificationDetails(android: androidPlatformChannelSpecifics);
 
           tz.TZDateTime tzScheduledTime = tz.TZDateTime.from(scheduledTime, tz.local);
@@ -58,7 +58,7 @@ class NotificationService {
       DateTime midnight = DateTime(scheduledTime.year, scheduledTime.month, scheduledTime.day + 1);
       int timeoutMillis = midnight.difference(scheduledTime).inMilliseconds;
 
-      // Removed 'const' from this line so it can use the timeoutMillis variable
+      // Notice the word 'const' is completely removed here
       AndroidNotificationDetails androidPlatformChannelSpecifics = AndroidNotificationDetails(
         'custom_notes',
         'Custom Notes',
